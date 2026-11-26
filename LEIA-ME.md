@@ -22,10 +22,5 @@ Ajustes → Exportar tudo (.json). No celular novo, instalar o app e usar Ajuste
 - Por arquivo: um .json com `name`, `coach` e `workouts` (mesmo formato de `programa-inicial.js`), via Ajustes → Importar.
 A série anterior fica em Ajustes → Séries anteriores, com todo o histórico.
 
-## Claude (IA)
-Ajustes → Claude: colar uma chave da API da Anthropic (console.anthropic.com → API keys) e escolher o modelo.
-A chave fica só no celular (fora do backup). A API é cobrada por uso, à parte da assinatura do Claude.
-As perguntas vão com o contexto da série, cargas, observações e histórico.
-
 ## Atualizar o app
 Substituir os arquivos na hospedagem e subir a versão em `sw.js` (`meutreino-v1` → `meutreino-v2`). Os dados do celular não são afetados.

@@ -1,18 +1,11 @@
-/* Meu Treino — app de academia (PWA). Dados no aparelho (localStorage); backup por arquivo .json; perguntas ao Claude pela API. */
+/* Meu Treino — app de academia (PWA). Dados no aparelho (localStorage); backup por arquivo .json. */
 (function () {
   "use strict";
   const KEY = "meutreino.v1";
-  const KEY_API = "meutreino.apikey"; // separado: nunca entra no backup
   const SCHEMA = 1;
   const VERSAO = "2.0";
   const $app = document.getElementById("app");
   const M = window.Corpo.MUSCLES;
-  const MODELOS = [
-    { id: "claude-sonnet-5-5", nome: "Sonnet 5.5", desc: "recomendado" },
-    { id: "claude-haiku-5-5", nome: "Haiku 5.5", desc: "rápido e barato" },
-    { id: "claude-opus-5-5", nome: "Opus 5.5", desc: "mais caro" }
-  ];
-
   // ---------------- utilidades ----------------
   const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   const slug = s => String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -35,7 +28,7 @@
 
   // ---------------- estado ----------------
   let S = load();
-  function blank() { return { schema: SCHEMA, programs: [], activeProgramId: null, ex: {}, sessions: [], current: null, chats: {}, settings: { sound: true, step: 2.5, lastBackup: null, theme: "auto", name: "Vinicius", model: MODELOS[0].id } }; }
+  function blank() { return { schema: SCHEMA, programs: [], activeProgramId: null, ex: {}, sessions: [], current: null, settings: { sound: true, step: 2.5, lastBackup: null, theme: "auto", name: "Vinicius" } }; }
   function normalizarPrograma(p) {
     p = JSON.parse(JSON.stringify(p));
     p.id = p.id || uid(); p.createdAt = p.createdAt || new Date().toISOString(); p.status = p.status || "active";
@@ -45,14 +38,14 @@
   function load() {
     try {
       const raw = localStorage.getItem(KEY);
-      if (raw) { const d = JSON.parse(raw); if (d && d.schema) { const b = blank(); const r = Object.assign(b, d); r.settings = Object.assign(blank().settings, d.settings || {}); r.chats = d.chats || {}; return r; } }
+      if (raw) { const d = JSON.parse(raw); if (d && d.schema) { const b = blank(); const r = Object.assign(b, d); r.settings = Object.assign(blank().settings, d.settings || {}); delete r.chats; delete r.settings.model; return r; } }
     } catch (e) { console.warn(e); }
     const d = blank();
     if (window.PROGRAMA_INICIAL) { const p = normalizarPrograma(window.PROGRAMA_INICIAL); d.programs.push(p); d.activeProgramId = p.id; }
     return d;
   }
   function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast("Não consegui salvar no aparelho: " + e.message); } }
-  const apiKey = () => { try { return localStorage.getItem(KEY_API) || ""; } catch (e) { return ""; } };
+  try { localStorage.removeItem("meutreino.apikey"); } catch (e) { }
   if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
 
   const prog = () => S.programs.find(p => p.id === S.activeProgramId) || S.programs[0];
@@ -119,20 +112,17 @@
   const ic = {
     treino: sv(`<path d="M6.5 6.5v11M3.5 9v6M17.5 6.5v11M20.5 9v6M6.5 12h11"/>`),
     hist: sv(`<path d="M3 20h18"/><rect x="5" y="11" width="3" height="6" rx="1"/><rect x="10.5" y="6" width="3" height="11" rx="1"/><rect x="16" y="13" width="3" height="4" rx="1"/>`),
-    ai: sv(`<path d="M12 3c.6 4.2 2.8 6.4 7 7-4.2.6-6.4 2.8-7 7-.6-4.2-2.8-6.4-7-7 4.2-.6 6.4-2.8 7-7z"/><path d="M19 15.5c.25 1.6 1 2.35 2.5 2.5-1.5.25-2.25 1-2.5 2.5-.25-1.5-1-2.25-2.5-2.5 1.5-.15 2.25-.9 2.5-2.5z"/>`),
     ajustes: sv(`<path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/>`),
     play: `<svg width="24" height="24" viewBox="0 0 24 24"><path d="M8 5.5v13l10.5-6.5z" fill="#111"/></svg>`,
     go: sv(`<path d="M5 12h14M13 6l6 6-6 6"/>`),
     home: sv(`<path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/>`),
     x: sv(`<path d="M6 6l12 12M18 6L6 18"/>`),
-    send: sv(`<path d="M12 19V5M5 12l7-7 7 7"/>`, `stroke-width="2.5"`),
     yt: sv(`<path d="M7 17l10-10M9 7h8v8"/>`),
     timer: sv(`<circle cx="12" cy="13" r="8"/><path d="M12 9v4l2 2M9 2h6"/>`)
   };
   const nav = () => `<nav class="nav">
     <button data-act="nav" data-v="home" class="${["home"].includes(view.name) ? "on" : ""}">${ic.treino}Treinos</button>
     <button data-act="nav" data-v="hist" class="${["hist", "sessao"].includes(view.name) ? "on" : ""}">${ic.hist}Histórico</button>
-    <button data-act="nav" data-v="claude" class="${view.name === "claude" ? "on" : ""}">${ic.ai}Claude</button>
     <button data-act="nav" data-v="ajustes" class="${["ajustes", "editor", "arquivo"].includes(view.name) ? "on" : ""}">${ic.ajustes}Ajustes</button></nav>`;
 
   const muscNomes = (e, max) => { const ns = [...e.p, ...e.s].map(k => M[k]).filter(Boolean); return max && ns.length > max ? ns.slice(0, max).join(" · ") + "…" : ns.join(" · "); };
@@ -144,12 +134,11 @@
   // ---------------- telas ----------------
   function render() {
     const V = {
-      home: vHome, treino: vTreino, hist: vHist, ajustes: vAjustes, editor: vEditor, arquivo: vArquivo, claude: vClaude,
+      home: vHome, treino: vTreino, hist: vHist, ajustes: vAjustes, editor: vEditor, arquivo: vArquivo,
       resumo: () => vResumo(view.id, true), sessao: () => vResumo(view.id, false)
     };
     $app.innerHTML = (V[view.name] || vHome)();
     tick();
-    if (view.name === "claude") scrollChatEnd();
   }
 
   function vHome() {
@@ -262,8 +251,6 @@
       <textarea id="notas" data-k="${esc(key)}" placeholder="Ex.: banco na posição 4, pegador mais alto…">${esc(st.notes)}</textarea>
       <div class="sec">Pontos de atenção</div>
       <div class="card" style="padding:6px 16px"><ul class="tips">${e.tips.map(t => `<li>${esc(t)}</li>`).join("") || "<li>—</li>"}</ul></div>
-      <div class="sec">Pergunte ao Claude</div>
-      ${vChatBox("ex:" + key, sugestoesEx(e))}
       ${alt}
       <div class="sec">Músculos</div>
       <div class="card"><div class="corpo-grande">${window.Corpo.svg(e.p, e.s, { labels: true })}</div>
@@ -336,7 +323,7 @@
   function vAjustes() {
     const p = prog(); const arq = S.programs.filter(x => x.id !== S.activeProgramId);
     const size = (() => { try { return Math.round((localStorage.getItem(KEY) || "").length / 1024); } catch (e) { return "?"; } })();
-    const th = S.settings.theme || "auto"; const k = apiKey();
+    const th = S.settings.theme || "auto";
     return `<div class="wrap"><h1>Ajustes</h1>
       <div class="sec">Aparência</div>
       <div class="seg">${[["auto", "Automático"], ["light", "Claro"], ["dark", "Escuro"]].map(([v, n]) => `<button data-act="theme" data-v="${v}" class="${th === v ? "on" : ""}">${n}</button>`).join("")}</div>
@@ -346,15 +333,6 @@
       <div class="card"><b style="font-size:17px">${esc(p ? p.name : "—")}</b><div class="small mut">${esc(p ? p.coach || "" : "")} · desde ${p ? fmtData(p.createdAt) : "–"}</div>
         <div class="row wrapx" style="margin-top:14px"><button class="btn sm" data-act="edit">Editar exercícios</button><button class="btn sm" data-act="nova-serie">Começar série nova</button></div></div>
       <button class="list-btn" data-act="nav" data-v="arquivo"><div class="grow"><b>Séries anteriores</b><div class="tiny mut">${arq.length} guardada(s), com todo o histórico</div></div><span class="chev">›</span></button>
-
-      <div class="sec">Claude (IA)</div>
-      <div class="card">
-        <div class="small" style="color:var(--tx2)">Para perguntar ao Claude dentro do app, cole uma chave da API da Anthropic. A chave fica só neste celular e não vai no backup.</div>
-        <div class="f"><label>Chave da API</label><div class="row"><input id="opt-key" type="password" autocomplete="off" placeholder="sk-ant-…" value="${esc(k)}"><button class="btn sm" data-act="key-test">Testar</button></div></div>
-        <div class="f"><label>Modelo</label><select id="opt-model">${MODELOS.map(m => `<option value="${m.id}" ${S.settings.model === m.id ? "selected" : ""}>${m.nome} — ${m.desc}</option>`).join("")}</select></div>
-        <div class="tiny mut">Gere a chave em <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener">console.anthropic.com</a>. A API é cobrada à parte da assinatura do Claude, por uso.</div>
-        ${k ? `<button class="btn danger sm" style="margin-top:12px" data-act="key-del">Remover chave</button>` : ""}
-      </div>
 
       <div class="sec">Backup e troca de celular</div>
       <div class="card"><div class="small" style="color:var(--tx2)">Tudo fica salvo neste aparelho. Para levar para outro celular, exporte o arquivo e importe no novo.</div>
@@ -426,149 +404,6 @@
     }
   }
 
-  // ---------------- Claude ----------------
-  const sugestoesEx = e => isCardio(e)
-    ? ["Qual velocidade é “moderado” para mim?", "Posso trocar por bicicleta?", "Como saber se estou forte demais?"]
-    : ["Estou fazendo certo?", "Qual carga devo usar?", "Sinto incômodo, o que ajusto?", "Quando aumentar a carga?", "Que erro é mais comum?"];
-  const sugestoesGeral = ["Monte um aquecimento de 5 min", "Como progredir a carga com segurança?", "Hoje estou cansado: como adapto o treino?", "Resuma minha evolução", "Quanto descanso entre treinos A e B?"];
-
-  function vChatBox(scope, sugs) {
-    const msgs = S.chats[scope] || [];
-    if (!apiKey()) return `<div class="ai-card"><div class="ai-badge">${ic.ai} Claude</div><p class="small mut" style="margin:8px 0 12px">Configure sua chave da API para tirar dúvidas sobre este exercício aqui mesmo.</p><button class="btn sm" data-act="nav" data-v="ajustes">Configurar</button></div>`;
-    return `<div class="ai-card" data-chat="${esc(scope)}">
-      <div class="row"><div class="ai-badge grow">${ic.ai} Claude</div>${msgs.length ? `<button class="btn sm ghost" data-act="chat-clear" data-scope="${esc(scope)}">Limpar</button>` : ""}</div>
-      <div class="msgs">${msgs.map(m => msgHtml(m)).join("")}</div>
-      ${msgs.length ? "" : `<div class="sugs">${sugs.map(s => `<button class="sugb" data-act="chat-sug" data-scope="${esc(scope)}">${esc(s)}</button>`).join("")}</div>`}
-      <div class="composer" style="margin-top:8px"><textarea rows="1" placeholder="Sua dúvida sobre este exercício" data-chat-in="${esc(scope)}"></textarea><button class="send" data-act="chat-send" data-scope="${esc(scope)}" aria-label="Enviar">${ic.send}</button></div>
-    </div>`;
-  }
-  function vClaude() {
-    const scope = "geral"; const msgs = S.chats[scope] || [];
-    if (!apiKey()) return `<div class="wrap"><h1>Claude</h1><div class="ai-card" style="margin-top:14px"><div class="ai-badge">${ic.ai} Seu assistente de treino</div>
-      <p class="small" style="color:var(--tx2)">Pergunte sobre técnica, carga, aquecimento ou como adaptar o treino do dia. O Claude responde já sabendo da sua série, das suas cargas e do seu histórico.</p>
-      <p class="small mut">Para ativar, cole uma chave da API da Anthropic em Ajustes. A chave fica só neste celular.</p>
-      <button class="btn pri sm" data-act="nav" data-v="ajustes">Configurar chave</button></div></div>${nav()}`;
-    return `<div class="wrap chat-page" style="padding-bottom:calc(190px + var(--safe-b))"><div class="row"><h1 class="grow">Claude</h1>${msgs.length ? `<button class="btn sm ghost" data-act="chat-clear" data-scope="geral">Nova conversa</button>` : ""}</div>
-      <div class="small mut">Responde sabendo da sua série, cargas e histórico. Não substitui o seu professor.</div>
-      <div data-chat="geral"><div class="msgs">${msgs.map(m => msgHtml(m)).join("")}</div>
-      ${msgs.length ? "" : `<div class="sugs" style="flex-wrap:wrap">${sugestoesGeral.map(s => `<button class="sugb" data-act="chat-sug" data-scope="geral">${esc(s)}</button>`).join("")}</div>`}
-      <div class="composer-fixed"><div class="composer"><textarea rows="1" placeholder="Pergunte sobre o seu treino" data-chat-in="geral"></textarea><button class="send" data-act="chat-send" data-scope="geral" aria-label="Enviar">${ic.send}</button></div></div></div>
-    </div>${nav()}`;
-  }
-  function md(t) {
-    const lines = esc(t).split("\n"); let out = "", list = null;
-    const inl = s => s.replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<i>$2</i>").replace(/`([^`]+)`/g, "<code>$1</code>");
-    const close = () => { if (list) { out += `</${list}>`; list = null; } };
-    lines.forEach(l => {
-      let m;
-      if ((m = l.match(/^\s*[-•*]\s+(.*)/))) { if (list !== "ul") { close(); out += "<ul>"; list = "ul"; } out += `<li>${inl(m[1])}</li>`; }
-      else if ((m = l.match(/^\s*\d+[.)]\s+(.*)/))) { if (list !== "ol") { close(); out += "<ol>"; list = "ol"; } out += `<li>${inl(m[1])}</li>`; }
-      else if ((m = l.match(/^#{1,4}\s+(.*)/))) { close(); out += `<p><b>${inl(m[1])}</b></p>`; }
-      else if (l.trim() === "") close();
-      else { close(); out += `<p>${inl(l)}</p>`; }
-    });
-    close(); return out;
-  }
-  const msgHtml = m => m.role === "user" ? `<div class="msg u">${esc(m.content)}</div>` : m.error ? `<div class="msg err">${esc(m.content)}</div>` : `<div class="msg a">${m.content ? md(m.content) : `<span class="dots"><span></span><span></span><span></span></span>`}</div>`;
-
-  function contexto(scope) {
-    const p = prog(); const hoje = new Date().toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    const fmtEx = e => { const st = S.ex[e.key] || {}; return `- ${e.name}: ${isCardio(e) ? `${e.reps} min` : `${e.sets}×${e.reps}`}${e.rest ? `, descanso ${e.rest}` : ""}; carga atual ${st.load == null ? "não registrada" : st.load + " " + unidadeCarga(e)}; músculos: ${muscNomes(e)}`; };
-    let ctx = `Hoje é ${hoje}.\n\n## Série atual: ${p.name}${p.coach ? ` (${p.coach})` : ""}, desde ${fmtData(p.createdAt)}\n`;
-    p.workouts.forEach(w => { ctx += `\n### ${w.name}${w.subtitle ? ` — ${w.subtitle}` : ""}\n${w.exercises.map(fmtEx).join("\n")}\n`; });
-    const ult = S.sessions.slice().sort((a, b) => b.start - a.start).slice(0, 10);
-    ctx += `\n## Últimos treinos (${S.sessions.length} no total)\n` + (ult.map(s => { const R = resumoDados(s); return `- ${fmtData(s.start)}: ${s.workoutName}, ${fmtMin(R.dur)}, ${R.feitas}/${R.tot} séries`; }).join("\n") || "- nenhum ainda");
-    if (S.current) { const c = S.current; const R = resumoDados(c); ctx += `\n\n## Treino em andamento agora\n${c.workoutName}, começou há ${fmtMin(now() - c.start)}, ${R.feitas}/${R.tot} séries feitas.`; }
-    if (scope.startsWith("ex:")) {
-      const key = scope.slice(3), e = findEx(key), st = S.ex[key] || {};
-      const h = historicoEx(key).slice(-15);
-      ctx += `\n\n## Exercício em foco: ${e.name}\n${fmtEx(e)}\nPontos de atenção mostrados no app: ${e.tips.join(" | ")}\n${e.alt && e.alt.name ? `Alternativa indicada pela academia: ${e.alt.name}\n` : ""}Observações do usuário: ${st.notes ? st.notes : "nenhuma"}\nHistórico: ${h.map(x => `${fmtData(x.t)} ${x.load == null ? "s/ carga" : x.load + unidadeCarga(e)} (${x.sets}/${x.of} séries)`).join("; ") || "nenhum registro"}`;
-    }
-    return ctx;
-  }
-  function systemPrompt(scope) {
-    const nome = S.settings.name || "o usuário";
-    return `Você é o assistente de treino dentro do app "Meu Treino", conversando com ${nome} pelo celular, muitas vezes no meio do treino.
-
-Como responder:
-- Português do Brasil, direto e curto: até ~120 palavras, salvo se ele pedir detalhe. Sem introdução nem despedida.
-- Listas curtas quando ajudarem. Use os dados abaixo (série, cargas, histórico, observações) para personalizar.
-- Baseie-se no consenso de treinamento de força e condicionamento. Seja prático e conservador com segurança; prefira progressões pequenas (ex.: +1 a 2,5 kg quando todas as séries saírem com boa técnica e folga).
-- Se ele relatar dor aguda ou em pontada, dor articular que piora, dormência, tontura, falta de ar ou dor no peito: oriente parar o exercício e procurar o professor ou um profissional de saúde. Não faça diagnóstico.
-- A série foi montada pelo professor da academia. Para trocar exercícios ou volume, você pode sugerir, mas recomende alinhar com o professor.
-- Não invente detalhes da academia ou de máquinas específicas; se depender do equipamento, diga como ajustar de forma geral.
-
-Dados do app:
-${contexto(scope)}`;
-  }
-  let chatBusy = false;
-  async function chatSend(scope, text) {
-    text = (text || "").trim(); if (!text || chatBusy) return;
-    const key = apiKey(); if (!key) { toast("Configure a chave em Ajustes"); return; }
-    S.chats[scope] = S.chats[scope] || [];
-    const arr = S.chats[scope]; arr.push({ role: "user", content: text });
-    const resp = { role: "assistant", content: "" }; arr.push(resp);
-    chatBusy = true; refreshChat(scope);
-    const history = arr.filter(m => !m.error && m !== resp).slice(-16).map(m => ({ role: m.role, content: m.content }));
-    try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: { "x-api-key": key, "anthropic-version": "2023-06-01", "content-type": "application/json", "anthropic-dangerous-direct-browser-access": "true" },
-        body: JSON.stringify({ model: S.settings.model || MODELOS[0].id, max_tokens: 1200, system: systemPrompt(scope), messages: history, stream: true })
-      });
-      if (!r.ok) { let msg = ""; try { const j = await r.json(); msg = j.error && j.error.message; } catch (e) { } throw new Error(erroApi(r.status, msg)); }
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let buf = "", last = 0;
-      for (; ;) {
-        const { done, value } = await reader.read(); if (done) break;
-        buf += dec.decode(value, { stream: true });
-        let i; while ((i = buf.indexOf("\n")) >= 0) {
-          const line = buf.slice(0, i).trim(); buf = buf.slice(i + 1);
-          if (!line.startsWith("data:")) continue;
-          let ev; try { ev = JSON.parse(line.slice(5)); } catch (e) { continue; }
-          if (ev.type === "content_block_delta" && ev.delta && ev.delta.type === "text_delta") resp.content += ev.delta.text;
-          else if (ev.type === "error") throw new Error(erroApi(0, ev.error && ev.error.message));
-        }
-        if (now() - last > 60) { last = now(); updateLastMsg(scope, resp); }
-      }
-      if (!resp.content) resp.content = "(sem resposta)";
-    } catch (err) {
-      resp.error = true; resp.content = err && err.message && !/Failed to fetch|NetworkError|Load failed/i.test(err.message) ? err.message : "Sem conexão com a internet. Tente de novo quando tiver sinal.";
-    }
-    if (arr.length > 40) arr.splice(0, arr.length - 40);
-    chatBusy = false; save(); refreshChat(scope);
-  }
-  function erroApi(st, msg) {
-    if (st === 401) return "Chave da API inválida. Confira em Ajustes.";
-    if (st === 403) return "Essa chave não tem permissão para este modelo.";
-    if (st === 400 && /credit|balance/i.test(msg || "")) return "Sem créditos na conta da API. Adicione créditos no console da Anthropic.";
-    if (st === 429) return "Muitas perguntas seguidas. Espere um pouco e tente de novo.";
-    if (st === 529 || st === 503) return "O Claude está sobrecarregado agora. Tente de novo em instantes.";
-    return "Erro da API" + (st ? ` (${st})` : "") + (msg ? `: ${msg}` : "");
-  }
-  function refreshChat(scope) {
-    const box = document.querySelector(`[data-chat="${CSS.escape(scope)}"]`); if (!box) return;
-    if (scope === "geral") { const y = window.scrollY; $app.innerHTML = vClaude(); window.scrollTo(0, y); scrollChatEnd(); return; }
-    const inp = box.querySelector("textarea"); const val = inp ? inp.value : "";
-    const tmp = document.createElement("div"); tmp.innerHTML = vChatBox(scope, sugestoesEx(findEx(scope.slice(3)) || {}));
-    box.replaceWith(tmp.firstElementChild);
-    const nb = document.querySelector(`[data-chat="${CSS.escape(scope)}"]`); const ni = nb && nb.querySelector("textarea"); if (ni) ni.value = val;
-    const ms = nb && nb.querySelector(".msgs"); if (ms && ms.lastElementChild) ms.lastElementChild.scrollIntoView({ block: "nearest", behavior: "smooth" });
-  }
-  function updateLastMsg(scope, m) {
-    const box = document.querySelector(`[data-chat="${CSS.escape(scope)}"] .msgs`); if (!box || !box.lastElementChild) return;
-    box.lastElementChild.innerHTML = md(m.content);
-    if (scope === "geral") scrollChatEnd();
-  }
-  function scrollChatEnd() { const ms = document.querySelector('[data-chat="geral"] .msgs'); if (ms && ms.children.length) window.scrollTo(0, document.body.scrollHeight); }
-  async function testKey() {
-    const k = apiKey(); if (!k) { toast("Cole a chave primeiro"); return; }
-    toast("Testando…");
-    try {
-      const r = await fetch("https://api.anthropic.com/v1/messages", { method: "POST", headers: { "x-api-key": k, "anthropic-version": "2023-06-01", "content-type": "application/json", "anthropic-dangerous-direct-browser-access": "true" }, body: JSON.stringify({ model: S.settings.model || MODELOS[0].id, max_tokens: 5, messages: [{ role: "user", content: "Responda só: ok" }] }) });
-      if (r.ok) toast("Chave funcionando ✓"); else { let msg = ""; try { const j = await r.json(); msg = j.error && j.error.message; } catch (e) { } toast(erroApi(r.status, msg)); }
-    } catch (e) { toast("Sem conexão com a internet"); }
-  }
-
   // ---------------- ações ----------------
   function startWorkout(wid) {
     const p = prog(), w = p.workouts.find(x => x.id === wid);
@@ -605,7 +440,7 @@ ${contexto(scope)}`;
     let d; try { d = JSON.parse(await file.text()); } catch (e) { toast("Arquivo inválido"); return; }
     if (d && d.schema && Array.isArray(d.programs)) {
       if (!(await ask(`Substituir tudo neste aparelho pelo backup de ${d.exportedAt ? fmtData(d.exportedAt) : "?"} (${(d.sessions || []).length} treinos)?`, "Substituir", true))) return;
-      const b = blank(); S = Object.assign(b, d); S.settings = Object.assign(blank().settings, d.settings || {}); S.chats = d.chats || {}; delete S.exportedAt; delete S.app;
+      const b = blank(); S = Object.assign(b, d); S.settings = Object.assign(blank().settings, d.settings || {}); delete S.chats; delete S.exportedAt; delete S.app;
       save(); applyTheme(); toast("Backup importado"); go({ name: S.current ? "treino" : "home" });
     } else if (d && Array.isArray(d.workouts)) {
       if (!(await ask(`Carregar a série “${esc(d.name || "nova")}” como série atual? A atual vai para Séries anteriores, com o histórico.`, "Carregar"))) return;
@@ -645,11 +480,6 @@ ${contexto(scope)}`;
     else if (a === "del-sessao") { if (await ask("Apagar este registro de treino?", "Apagar", true)) { S.sessions = S.sessions.filter(s => s.id !== b.dataset.id); save(); go({ name: "hist" }); } }
     else if (a === "export") exportar();
     else if (a === "theme") { S.settings.theme = b.dataset.v; save(); applyTheme(); render(); }
-    else if (a === "key-test") testKey();
-    else if (a === "key-del") { if (await ask("Remover a chave da API deste celular?", "Remover", true)) { try { localStorage.removeItem(KEY_API); } catch (e) { } render(); } }
-    else if (a === "chat-send") { const inp = document.querySelector(`[data-chat-in="${CSS.escape(b.dataset.scope)}"]`); const t = inp ? inp.value : ""; if (inp) inp.value = ""; chatSend(b.dataset.scope, t); }
-    else if (a === "chat-sug") chatSend(b.dataset.scope, b.textContent);
-    else if (a === "chat-clear") { delete S.chats[b.dataset.scope]; save(); if (b.dataset.scope === "geral") render(); else refreshChat(b.dataset.scope); }
     else if (a === "edit") { ED = null; go({ name: "editor" }); }
     else if (a === "nova-serie") {
       if (!(await ask("Começar uma série nova a partir da atual? A atual vai para Séries anteriores (com histórico) e você edita a nova. Se o professor passou um arquivo, use Importar.", "Começar"))) return;
@@ -677,11 +507,6 @@ ${contexto(scope)}`;
     const el = ev.target;
     if (el.dataset.ed && ED) { if (el.dataset.ed !== "cardio") edField(el); }
     else if (el.id === "notas") { exState(el.dataset.k).notes = el.value; clearTimeout(el._t); el._t = setTimeout(save, 400); }
-    else if (el.dataset.chatIn != null) { el.style.height = "auto"; el.style.height = Math.min(140, el.scrollHeight) + "px"; }
-  });
-  document.addEventListener("keydown", ev => {
-    const el = ev.target;
-    if (el.dataset && el.dataset.chatIn != null && ev.key === "Enter" && !ev.shiftKey && !("ontouchstart" in window)) { ev.preventDefault(); const t = el.value; el.value = ""; chatSend(el.dataset.chatIn, t); }
   });
   document.addEventListener("change", ev => {
     const el = ev.target;
@@ -690,8 +515,6 @@ ${contexto(scope)}`;
     else if (el.id === "opt-sound") { S.settings.sound = el.checked; save(); }
     else if (el.id === "opt-step") { S.settings.step = +el.value; save(); }
     else if (el.id === "opt-name") { S.settings.name = el.value.trim(); save(); }
-    else if (el.id === "opt-model") { S.settings.model = el.value; save(); }
-    else if (el.id === "opt-key") { try { const v = el.value.trim(); if (v) localStorage.setItem(KEY_API, v); else localStorage.removeItem(KEY_API); } catch (e) { } toast(el.value.trim() ? "Chave salva neste celular" : "Chave removida"); }
     else if (el.dataset.ed === "cardio" && ED) edField(el);
   });
 
