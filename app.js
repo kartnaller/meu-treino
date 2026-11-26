@@ -92,8 +92,16 @@
   let sheet = null;
   function go(v) { view = v; sheet = null; render(); window.scrollTo(0, 0); }
   function openSheet(s) { sheet = s; history.pushState({ sheet: 1 }, ""); renderSheet(); }
-  function closeSheet(fromPop) { if (!sheet) return; sheet = null; renderSheet(); if (!fromPop) history.back(); const y = window.scrollY; render(); window.scrollTo(0, y); }
-  window.addEventListener("popstate", () => { if (sheet) closeSheet(true); });
+  let ignorePop = false;
+  function closeSheet(fromPop) { if (!sheet) return; sheet = null; renderSheet(); if (!fromPop) { ignorePop = true; history.back(); } const y = window.scrollY; render(); window.scrollTo(0, y); }
+  function guardTreino() { if (view.name === "treino" && S.current && !(history.state && history.state.treino)) history.pushState({ treino: 1 }, ""); }
+  function dropGuard() { if (history.state && history.state.treino) { ignorePop = true; history.back(); } }
+  window.addEventListener("popstate", () => {
+    if (ignorePop) { ignorePop = false; return; }
+    const dlg = document.querySelector(".dlg-bg"); if (dlg) dlg.dispatchEvent(new CustomEvent("fechar"));
+    if (sheet) { closeSheet(true); return; }
+    if (view.name === "treino" && S.current) { history.pushState({ treino: 1 }, ""); if (!dlg) pararTreino(); }
+  });
 
   // ---------------- diálogos ----------------
   function ask(msg, okTxt, danger) {
@@ -101,6 +109,17 @@
       const bg = document.createElement("div"); bg.className = "dlg-bg";
       bg.innerHTML = `<div class="dlg"><p>${msg}</p><div class="row"><button class="btn ghost sm" data-r="0">Cancelar</button><button class="btn sm ${danger ? "danger" : "pri"}" data-r="1">${okTxt || "OK"}</button></div></div>`;
       bg.addEventListener("click", e => { const b = e.target.closest("[data-r]"); if (b || e.target === bg) { e.stopPropagation(); bg.remove(); res(!!b && b.dataset.r === "1"); } });
+      bg.addEventListener("fechar", () => { bg.remove(); res(false); });
+      document.body.appendChild(bg);
+    });
+  }
+  function choice(title, msg, ops) {
+    return new Promise(res => {
+      const bg = document.createElement("div"); bg.className = "dlg-bg";
+      bg.innerHTML = `<div class="dlg"><h3 class="dlg-t">${title}</h3><p>${msg}</p><div class="dlg-col">${ops.map(o => `<button class="btn block ${o.cls || ""}" data-r="${o.v}">${o.label}</button>`).join("")}</div></div>`;
+      const fim = v => { bg.remove(); res(v); };
+      bg.addEventListener("click", e => { const b = e.target.closest("[data-r]"); if (b) { e.stopPropagation(); fim(b.dataset.r); } else if (e.target === bg) fim(null); });
+      bg.addEventListener("fechar", () => fim(null));
       document.body.appendChild(bg);
     });
   }
@@ -139,6 +158,7 @@
     };
     $app.innerHTML = (V[view.name] || vHome)();
     tick();
+    guardTreino();
   }
 
   function vHome() {
@@ -195,9 +215,9 @@
     return `<div class="wrap" style="padding-bottom:calc(120px + var(--safe-b))">
       <div class="topbar row"><div class="ring"><svg width="0" height="0" style="position:absolute"><defs><linearGradient id="gr" x1="0" y1="0" x2="1" y2="1"><stop offset="0" style="stop-color:#ff8a3d"/><stop offset="1" style="stop-color:#ff4f6d"/></linearGradient></defs></svg>${ring(tot ? feitas / tot : 0, 64, 7)}<b>${tot ? Math.round(feitas / tot * 100) : 0}%</b></div>
         <div class="grow"><div class="small mut" style="font-weight:600">${esc(c.workoutName)} · ${feitas}/${tot}</div><div class="relogio" data-clock="cur">00:00</div></div>
-        <button class="iconbtn" data-act="home" aria-label="Início">${ic.home}</button><button class="btn ok sm" data-act="finish">Finalizar</button></div>
+        <button class="btn sm" data-act="parar">Parar</button><button class="btn ok sm" data-act="finish">Finalizar</button></div>
       ${items}
-      <div class="row" style="margin-top:20px;justify-content:center"><button class="btn danger sm" data-act="discard">Descartar treino</button></div>
+      <div class="row" style="margin-top:20px;justify-content:center"><button class="btn ghost sm" data-act="parar">Parar treino</button></div>
     </div>${vRest()}`;
   }
 
@@ -421,9 +441,23 @@
   }
   async function finish() {
     const c = S.current; const R = resumoDados(c);
-    if (R.feitas < R.tot && !(await ask(`Você marcou ${R.feitas} de ${R.tot} séries. Finalizar mesmo assim?`, "Finalizar"))) return;
-    c.end = now(); delete c.rest; S.sessions.push(c); const id = c.id; S.current = null; save(); wakeOff();
+    if (R.feitas < R.tot) { pararTreino(); return; }
+    encerrar();
+  }
+  function encerrar() {
+    const c = S.current; c.end = now(); delete c.rest; S.sessions.push(c); const id = c.id; S.current = null; save(); wakeOff(); dropGuard();
     go({ name: "resumo", id });
+  }
+  function descartar() { S.current = null; save(); wakeOff(); dropGuard(); go({ name: "home" }); }
+  async function pararTreino() {
+    const c = S.current; if (!c || document.querySelector(".dlg-bg")) return; const R = resumoDados(c);
+    const msg = R.feitas ? `Você fez ${R.feitas} de ${R.tot} séries em ${fmtDur(now() - c.start)}.` : "Nenhuma série marcada ainda.";
+    const ops = [];
+    if (R.feitas) ops.push({ v: "save", label: "Parar e salvar o que fiz", cls: "pri" });
+    ops.push({ v: "discard", label: "Cancelar treino (não salvar)", cls: "danger" });
+    ops.push({ v: "cont", label: "Continuar treinando", cls: "ghost" });
+    const r = await choice("Parar o treino?", msg, ops);
+    if (r === "save") encerrar(); else if (r === "discard") descartar();
   }
   function exportar() {
     const data = JSON.stringify(Object.assign({}, S, { exportedAt: new Date().toISOString(), app: "meu-treino" }), null, 1);
@@ -453,7 +487,7 @@
   document.addEventListener("click", async ev => {
     const b = ev.target.closest("[data-act]"); if (!b) return;
     const a = b.dataset.act;
-    if (a === "nav") { if (view.name === "editor") ED = null; if (sheet) { sheet = null; renderSheet(); history.back(); } go({ name: b.dataset.v }); }
+    if (a === "nav") { if (view.name === "editor") ED = null; if (sheet) { sheet = null; renderSheet(); ignorePop = true; history.back(); } go({ name: b.dataset.v }); }
     else if (a === "home") go({ name: "home" });
     else if (a === "resume") { wakeOn(); go({ name: "treino" }); }
     else if (a === "start") {
@@ -468,7 +502,7 @@
     else if (a === "rest-start") restStart(null);
     else if (a === "rest-stop") { S.current.rest = null; save(); const r = document.querySelector(".rest"); if (r) r.outerHTML = vRest(); }
     else if (a === "finish") finish();
-    else if (a === "discard") { if (await ask("Descartar este treino? Nada dele será salvo.", "Descartar", true)) { S.current = null; save(); wakeOff(); go({ name: "home" }); } }
+    else if (a === "parar") pararTreino();
     else if (a === "ex") openSheet({ type: "ex", key: b.dataset.k });
     else if (a === "close") closeSheet();
     else if (a === "play") { const box = b.closest(".video"); box.innerHTML = `<iframe src="https://www.youtube-nocookie.com/embed/${b.dataset.id}?autoplay=1&playsinline=1&rel=0&modestbranding=1" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen referrerpolicy="strict-origin-when-cross-origin" title="vídeo"></iframe>`; }

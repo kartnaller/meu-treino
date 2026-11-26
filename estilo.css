@@ -207,4 +207,6 @@ details.ed[open]{padding-bottom:14px}
 .dlg{background:var(--surf);border:1px solid var(--line);border-radius:24px;padding:20px;max-width:420px;width:100%;box-shadow:var(--shadow);animation:fade .2s}
 .dlg p{margin:0 0 18px;font-size:16px}
 .dlg .row{justify-content:flex-end}
+.dlg-t{margin:0 0 6px;font-size:19px;font-weight:800;letter-spacing:-.3px}
+.dlg-col{display:flex;flex-direction:column;gap:8px}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(100px + var(--safe-b));background:var(--tx);color:var(--bg);padding:11px 18px;border-radius:14px;z-index:70;font-size:14px;font-weight:600;box-shadow:var(--shadow);animation:fade .2s}
